@@ -1,0 +1,968 @@
+<title>断層 DANSO</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #E9E8E1;
+    --surface: #F6F5EF;
+    --surface2: #EFEDE5;
+    --ink: #23271F;
+    --ink-soft: #5A5F54;
+    --line: #C9C7BB;
+    --odd: #B3432B;
+    --odd-tint: #E8CFC4;
+    --odd-tint-strong: #DDB2A2;
+    --even: #35618E;
+    --even-tint: #CBD9E6;
+    --even-tint-strong: #AEC6DC;
+    --wall: #23201C;
+    --wall-preview: rgba(35, 32, 28, 0.35);
+    --illegal: #9A3324;
+    --focus: #35618E;
+    --shadow: rgba(35, 39, 31, 0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16181B;
+      --surface: #1F2226;
+      --surface2: #262A2F;
+      --ink: #E7E4DA;
+      --ink-soft: #9BA095;
+      --line: #3A3E43;
+      --odd: #DB7A5E;
+      --odd-tint: #4A322B;
+      --odd-tint-strong: #633F35;
+      --even: #7FAEDC;
+      --even-tint: #2A3A4A;
+      --even-tint-strong: #354D63;
+      --wall: #D8D3C6;
+      --wall-preview: rgba(216, 211, 198, 0.35);
+      --illegal: #E06A50;
+      --focus: #7FAEDC;
+      --shadow: rgba(0, 0, 0, 0.4);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16181B;
+    --surface: #1F2226;
+    --surface2: #262A2F;
+    --ink: #E7E4DA;
+    --ink-soft: #9BA095;
+    --line: #3A3E43;
+    --odd: #DB7A5E;
+    --odd-tint: #4A322B;
+    --odd-tint-strong: #633F35;
+    --even: #7FAEDC;
+    --even-tint: #2A3A4A;
+    --even-tint-strong: #354D63;
+    --wall: #D8D3C6;
+    --wall-preview: rgba(216, 211, 198, 0.35);
+    --illegal: #E06A50;
+    --focus: #7FAEDC;
+    --shadow: rgba(0, 0, 0, 0.4);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Hiragino Kaku Gothic ProN", "Yu Gothic Medium", "Yu Gothic", "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 20px 16px 48px; }
+  header.masthead { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+  h1 {
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+    font-size: 2.1rem; font-weight: 600; letter-spacing: 0.28em; margin: 0;
+  }
+  .tagline { color: var(--ink-soft); font-size: 0.85rem; letter-spacing: 0.06em; }
+  .langbtn { margin-left: auto; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+  @media (max-width: 760px) { main { grid-template-columns: 1fr; } }
+  .boardcard { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px; box-shadow: 0 2px 10px var(--shadow); }
+  svg#board { display: block; width: 100%; height: auto; touch-action: manipulation; }
+  .panel { display: flex; flex-direction: column; gap: 14px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; box-shadow: 0 2px 10px var(--shadow); }
+  .status { font-size: 0.98rem; min-height: 1.6em; }
+  .status .who { font-weight: 700; }
+  .scorebar { display: flex; height: 14px; border-radius: 7px; overflow: hidden; border: 1px solid var(--line); margin: 10px 0 4px; position: relative; }
+  .scorebar .odd-part { background: var(--odd); transition: width 0.35s ease; }
+  .scorebar .even-part { background: var(--even); flex: 1; }
+  .scorebar .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: 0.75; }
+  .progress { font-size: 0.8rem; color: var(--ink-soft); margin: 2px 0 10px; letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+  .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .side { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface2); }
+  .side .name { font-weight: 700; letter-spacing: 0.08em; }
+  .side .name.odd { color: var(--odd); }
+  .side .name.even { color: var(--even); }
+  .side .pts { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.15; }
+  .side .goal, .side .wallsleft { font-size: 0.78rem; color: var(--ink-soft); letter-spacing: 0.04em; }
+  .side .youtag { font-size: 0.72rem; border: 1px solid var(--line); border-radius: 99px; padding: 0 8px; margin-left: 6px; vertical-align: 2px; color: var(--ink-soft); }
+  .wallticks { letter-spacing: 2px; font-size: 0.8rem; }
+  .controls { display: flex; flex-direction: column; gap: 10px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row label { font-size: 0.82rem; color: var(--ink-soft); letter-spacing: 0.05em; min-width: 4.5em; }
+  button, select {
+    font: inherit; font-size: 0.88rem; color: var(--ink);
+    background: var(--surface2); border: 1px solid var(--line); border-radius: 7px;
+    padding: 7px 12px; cursor: pointer;
+  }
+  button:hover, select:hover { border-color: var(--ink-soft); }
+  button:focus-visible, select:focus-visible, .seamhit:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  button.primary { background: var(--ink); color: var(--bg); border-color: var(--ink); font-weight: 600; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+  details.rules summary { cursor: pointer; font-weight: 700; letter-spacing: 0.05em; }
+  details.rules { font-size: 0.86rem; }
+  details.rules p { margin: 0.5em 0; }
+  .foot { margin-top: 18px; color: var(--ink-soft); font-size: 0.78rem; letter-spacing: 0.03em; }
+  .overlay {
+    position: fixed; inset: 0; background: color-mix(in srgb, var(--bg) 55%, transparent);
+    display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(2px);
+  }
+  .overlay.show { display: flex; }
+  .overlay .box {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    border-top: 6px solid var(--ink);
+    box-shadow: 0 12px 40px var(--shadow); padding: 26px 32px 24px; max-width: 420px; width: 100%; text-align: center;
+    transform: scale(0.94); opacity: 0; transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .overlay.show .box { transform: scale(1); opacity: 1; }
+  .overlay .eyebrow {
+    font-size: 0.78rem; letter-spacing: 0.35em; color: var(--ink-soft);
+    text-transform: uppercase; margin-bottom: 10px; font-weight: 700;
+  }
+  .overlay .box h2 {
+    font-family: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+    margin: 0 0 14px; letter-spacing: 0.12em; font-size: 2.3rem; line-height: 1.2; text-wrap: balance;
+  }
+  .overlay .score-row { display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 10px; }
+  .overlay .score-row .s .nm { font-size: 0.82rem; font-weight: 700; letter-spacing: 0.1em; }
+  .overlay .score-row .s .v { font-size: 2.6rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .overlay .score-row .s.odd .nm, .overlay .score-row .s.odd .v { color: var(--odd); }
+  .overlay .score-row .s.even .nm, .overlay .score-row .s.even .v { color: var(--even); }
+  .overlay .score-row .dash { color: var(--ink-soft); font-size: 1.4rem; }
+  .overlay .minibar { display: flex; height: 10px; border-radius: 5px; overflow: hidden; border: 1px solid var(--line); margin: 0 8px 14px; position: relative; }
+  .overlay .minibar .o { background: var(--odd); }
+  .overlay .minibar .e { background: var(--even); flex: 1; }
+  .overlay .minibar .tick { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink); opacity: 0.75; left: 44%; }
+  .overlay .box .final { font-variant-numeric: tabular-nums; color: var(--ink-soft); margin-bottom: 18px; font-size: 0.95rem; }
+  .overlay .btns { display: flex; gap: 10px; justify-content: center; }
+  .endbanner {
+    border-radius: 8px; padding: 10px 12px; font-weight: 700; font-size: 0.98rem;
+    border-left: 5px solid var(--ink); background: var(--surface2);
+    display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+  }
+  .endbanner .flag { font-size: 0.75rem; letter-spacing: 0.28em; color: var(--ink-soft); text-transform: uppercase; }
+  .endbanner.odd { border-left-color: var(--odd); background: color-mix(in srgb, var(--odd) 14%, var(--surface)); }
+  .endbanner.even { border-left-color: var(--even); background: color-mix(in srgb, var(--even) 14%, var(--surface)); }
+  .endbanner.odd .w { color: var(--odd); }
+  .endbanner.even .w { color: var(--even); }
+  .cellpulse { animation: cellpulse 0.9s ease 2; }
+  @keyframes cellpulse { 50% { opacity: 0.35; } }
+  @media (prefers-reduced-motion: reduce) {
+    .overlay .box { transition: none; transform: none; opacity: 1; }
+    .cellpulse { animation: none; }
+  }
+  .thinking { display: inline-block; width: 0.9em; height: 0.9em; border: 2px solid var(--ink-soft); border-top-color: transparent; border-radius: 50%; vertical-align: -2px; margin-left: 6px; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .thinking { animation: none; }
+    .scorebar .odd-part { transition: none; }
+  }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 22px; background: var(--ink); color: var(--bg); border-radius: 8px; padding: 8px 16px; font-size: 0.85rem; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+  .toast.show { opacity: 1; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>断層</h1>
+    <div class="tagline" data-i18n="tagline">DANSO — 壁で大地を割り、偶奇で領土を取る</div>
+    <span class="langbtn seg" role="group" aria-label="Language">
+      <button id="lang-ja" aria-pressed="true">日本語</button>
+      <button id="lang-en" aria-pressed="false">EN</button>
+    </span>
+  </header>
+
+  <main>
+    <div class="boardcard">
+      <svg id="board" viewBox="0 0 420 420" aria-label="board"></svg>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <div class="status" id="status"></div>
+        <div id="tutbox" style="display:none">
+          <div id="tut-caption" style="font-size:0.9rem; line-height:1.6"></div>
+          <div class="row" style="margin-top:10px; align-items:center">
+            <button id="tut-prev" data-i18n="tutPrev">戻る</button>
+            <button class="primary" id="tut-next" data-i18n="tutNext">次へ</button>
+            <button id="tut-exit" data-i18n="tutExit">終了</button>
+            <span id="tut-count" style="color:var(--ink-soft); font-size:0.8rem; font-variant-numeric:tabular-nums"></span>
+          </div>
+        </div>
+        <div class="scorebar" aria-hidden="true">
+          <div class="odd-part" id="oddbar" style="width:100%"></div>
+          <div class="even-part"></div>
+          <div class="tick" style="left:44%"></div>
+        </div>
+        <div class="progress" id="progress"></div>
+        <div class="ledger">
+          <div class="side">
+            <div class="name odd"><span data-i18n="odd">奇</span><span class="youtag" id="tag-odd"></span></div>
+            <div class="pts" id="pts-odd">25</div>
+            <div class="goal" data-i18n="goalOdd">11で勝ち</div>
+            <div class="wallsleft"><span data-i18n="walls">壁</span> <span class="wallticks" id="walls-odd"></span></div>
+          </div>
+          <div class="side">
+            <div class="name even"><span data-i18n="even">偶</span><span class="youtag" id="tag-even"></span></div>
+            <div class="pts" id="pts-even">0</div>
+            <div class="goal" data-i18n="goalEven">15で勝ち</div>
+            <div class="wallsleft"><span data-i18n="walls">壁</span> <span class="wallticks" id="walls-even"></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card controls">
+        <div class="row">
+          <label data-i18n="mode">モード</label>
+          <span class="seg" role="group">
+            <button id="mode-ai" aria-pressed="true" data-i18n="modeAI">AI対戦</button>
+            <button id="mode-2p" aria-pressed="false" data-i18n="mode2p">ふたりで</button>
+          </span>
+        </div>
+        <div class="row" id="row-side">
+          <label data-i18n="youplay">あなた</label>
+          <span class="seg" role="group">
+            <button id="side-odd" aria-pressed="true" data-i18n="oddFirst">奇(先手)</button>
+            <button id="side-even" aria-pressed="false" data-i18n="evenSecond">偶(後手)</button>
+          </span>
+        </div>
+        <div class="row" id="row-ai">
+          <label data-i18n="ai">AI</label>
+          <span class="seg" role="group">
+            <button id="ai-weak" aria-pressed="false" data-i18n="aiWeak">よわい</button>
+            <button id="ai-mid" aria-pressed="false" data-i18n="aiMid">ふつう</button>
+            <button id="ai-strong" aria-pressed="true" data-i18n="aiStrong">つよい</button>
+          </span>
+        </div>
+        <div class="row">
+          <button class="primary" id="newgame" data-i18n="newGame">新しい対局</button>
+          <button id="undo" data-i18n="undo">待った</button>
+          <button id="tut-start" data-i18n="tutorial">チュートリアル</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <details class="rules">
+          <summary data-i18n="rulesTitle">ルール(30秒で読める)</summary>
+          <div id="rules-body"></div>
+        </details>
+      </div>
+    </div>
+  </main>
+
+  <div class="foot" data-i18n="foot">
+    2人・完全情報・運なし。弱AI同士4万局で先手勝率50.07%、引き分けは構造的に0。強AI(MCTS)は1手読みAIに88.4%勝利。
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="box" id="result-box">
+    <div class="eyebrow" id="result-eyebrow">終局 — GAME OVER</div>
+    <h2 id="result-title"></h2>
+    <div class="score-row">
+      <div class="s odd"><div class="nm" id="rs-odd-nm">奇</div><div class="v" id="rs-odd">0</div></div>
+      <div class="dash">—</div>
+      <div class="s even"><div class="nm" id="rs-even-nm">偶</div><div class="v" id="rs-even">0</div></div>
+    </div>
+    <div class="minibar" aria-hidden="true"><div class="o" id="rs-bar"></div><div class="e"></div><div class="tick"></div></div>
+    <div class="final" id="result-detail"></div>
+    <div class="btns">
+      <button class="primary" id="rematch" data-i18n="rematch">もう一局</button>
+      <button id="viewboard" data-i18n="viewBoard">盤面を見る</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+/* ================= engine (mirrors src/game.js, final rules) ================ */
+const SIZE = 5, N = 25, T_ODD = 11, TOTAL_WALLS = 16, BUDGET = 8;
+const seams = [];
+for (let r = 0; r < SIZE; r++) for (let c = 0; c < SIZE - 1; c++) seams.push([r * SIZE + c, r * SIZE + c + 1]);
+for (let r = 0; r < SIZE - 1; r++) for (let c = 0; c < SIZE; c++) seams.push([r * SIZE + c, (r + 1) * SIZE + c]);
+const NSEAMS = seams.length;
+const cellSeams = Array.from({ length: N }, () => []);
+seams.forEach(([a, b], i) => { cellSeams[a].push([i, b]); cellSeams[b].push([i, a]); });
+
+const markBuf = new Int32Array(N); let stampC = 0; const stk = new Int32Array(N);
+function compSize(walls, start, extra) {
+  const st = ++stampC; let top = 0, cnt = 0;
+  stk[top++] = start; markBuf[start] = st;
+  while (top > 0) {
+    const cell = stk[--top]; cnt++;
+    for (const [s, o] of cellSeams[cell]) {
+      if (s === extra || walls[s]) continue;
+      if (markBuf[o] !== st) { markBuf[o] = st; stk[top++] = o; }
+    }
+  }
+  return cnt;
+}
+function reaches(walls, a, b, extra) {
+  const st = ++stampC; let top = 0;
+  stk[top++] = a; markBuf[a] = st;
+  while (top > 0) {
+    const cell = stk[--top];
+    if (cell === b) return true;
+    for (const [s, o] of cellSeams[cell]) {
+      if (s === extra || walls[s]) continue;
+      if (markBuf[o] !== st) { markBuf[o] = st; stk[top++] = o; }
+    }
+  }
+  return false;
+}
+function isLegal(walls, i) {
+  if (walls[i]) return false;
+  const [a, b] = seams[i];
+  if (reaches(walls, a, b, i)) return true;
+  if (compSize(walls, a, i) < 2) return false;
+  return compSize(walls, b, i) >= 2;
+}
+function regionInfo(walls) { // labels, sizes per region
+  const label = new Int32Array(N).fill(-1);
+  const sizes = [];
+  for (let s = 0; s < N; s++) {
+    if (label[s] >= 0) continue;
+    const id = sizes.length; let top = 0, cnt = 0;
+    stk[top++] = s; label[s] = id;
+    while (top > 0) {
+      const cell = stk[--top]; cnt++;
+      for (const [sm, o] of cellSeams[cell]) {
+        if (walls[sm]) continue;
+        if (label[o] < 0) { label[o] = id; stk[top++] = o; }
+      }
+    }
+    sizes.push(cnt);
+  }
+  return { label, sizes };
+}
+function oddSum(walls) {
+  const { sizes } = regionInfo(walls);
+  let odd = 0; for (const sz of sizes) if (sz % 2 === 1) odd += sz;
+  return odd;
+}
+function initial() { return { walls: new Uint8Array(NSEAMS), placed: 0, toMove: 1 }; } // player1 = Odd
+function apply(s, m) { const w = s.walls.slice(); w[m] = 1; return { walls: w, placed: s.placed + 1, toMove: 3 - s.toMove }; }
+function legalMoves(s) { const ms = []; for (let i = 0; i < NSEAMS; i++) if (isLegal(s.walls, i)) ms.push(i); return ms; }
+function randomMove(s, rnd) {
+  const open = []; for (let i = 0; i < NSEAMS; i++) if (!s.walls[i]) open.push(i);
+  while (open.length) {
+    const j = (rnd() * open.length) | 0, i = open[j];
+    if (isLegal(s.walls, i)) return i;
+    open[j] = open[open.length - 1]; open.pop();
+  }
+  return null;
+}
+function winner(s) {
+  if (s.placed < TOTAL_WALLS) {
+    if (NSEAMS - s.placed > 0.8 * N) return null; // stall provably impossible here
+    for (let i = 0; i < NSEAMS; i++) if (isLegal(s.walls, i)) return null;
+  }
+  return oddSum(s.walls) >= T_ODD ? 1 : 2;
+}
+
+/* ================= AIs ================ */
+function greedyMove(s) {
+  const me = s.toMove, moves = legalMoves(s);
+  let best = [], bestScore = -Infinity;
+  for (const m of moves) {
+    const ns = apply(s, m);
+    const w = winner(ns);
+    let sc;
+    if (w === me) sc = 1e9; else if (w === 3 - me) sc = -1e9;
+    else { const o = oddSum(ns.walls); sc = me === 1 ? o : -o; }
+    if (sc > bestScore + 1e-9) { bestScore = sc; best = [m]; }
+    else if (sc > bestScore - 1e-9) best.push(m);
+  }
+  return best[(Math.random() * best.length) | 0];
+}
+// chunked UCT MCTS: calls done(move) asynchronously; keeps UI responsive
+function mctsMove(rootState, opts, done) {
+  const C = 1.0, rnd = Math.random;
+  const maxIters = opts.maxIters, deadline = performance.now() + opts.timeMs;
+  const root = { state: rootState, children: [], visits: 0, wins: 0, untried: legalMoves(rootState), move: null, parent: null };
+  if (root.untried.length === 1) { done(root.untried[0]); return; }
+  let iters = 0;
+  function slice() {
+    const sliceEnd = performance.now() + 35;
+    while (performance.now() < sliceEnd && iters < maxIters) {
+      iters++;
+      let node = root;
+      while (node.untried.length === 0 && node.children.length > 0) {
+        let bc = null, bu = -Infinity; const logN = Math.log(node.visits + 1);
+        for (const ch of node.children) {
+          const u = ch.wins / ch.visits + C * Math.sqrt(logN / ch.visits);
+          if (u > bu) { bu = u; bc = ch; }
+        }
+        node = bc;
+      }
+      let state = node.state;
+      if (node.untried.length > 0 && winner(state) === null) {
+        const idx = (rnd() * node.untried.length) | 0;
+        const move = node.untried[idx];
+        node.untried.splice(idx, 1);
+        state = apply(state, move);
+        const child = { state, move, parent: node, visits: 0, wins: 0, children: [], untried: winner(state) === null ? legalMoves(state) : [] };
+        node.children.push(child); node = child;
+      }
+      let w = winner(state), guard = 0;
+      while (w === null && guard++ < 40) {
+        const m = randomMove(state, rnd);
+        if (m === null) break;
+        state = apply(state, m);
+        w = winner(state);
+      }
+      if (w === null) w = 0;
+      let n = node;
+      while (n !== null) {
+        n.visits++;
+        if (n.parent !== null) {
+          const mover = n.parent.state.toMove;
+          if (w === mover) n.wins += 1; else if (w === 0) n.wins += 0.5;
+        }
+        n = n.parent;
+      }
+    }
+    if (iters >= maxIters || performance.now() >= deadline) {
+      let best = null;
+      for (const ch of root.children) if (!best || ch.visits > best.visits) best = ch;
+      done(best ? best.move : root.untried[0]);
+    } else setTimeout(slice, 0);
+  }
+  setTimeout(slice, 0);
+}
+
+/* ================= i18n ================ */
+const I18N = {
+  ja: {
+    tagline: 'DANSO — 壁で大地を割り、偶奇で領土を取る',
+    odd: '奇', even: '偶', walls: '壁', goalOdd: '終局時11で勝ち', goalEven: '終局時15で勝ち',
+    progress: (p) => `壁 ${p}/16 — 得点は暫定、終局時に確定`,
+    progressDone: '全16枚が置かれ、終局しました',
+    youplay: 'あなた', ai: 'AI', oddFirst: '奇(先手)', evenSecond: '偶(後手)',
+    aiWeak: 'よわい', aiMid: 'ふつう', aiStrong: 'つよい',
+    mode: 'モード', modeAI: 'AI対戦', mode2p: 'ふたりで',
+    tutorial: 'チュートリアル', tutPrev: '戻る', tutNext: '次へ', tutExit: '終了',
+    firstTag: '先手', secondTag: '後手',
+    turnOdd: '奇の番です — 目地を選んで壁を置く', turnEven: '偶の番です — 目地を選んで壁を置く',
+    tapConfirm: 'もう一度タップで確定(別の目地で選び直し)',
+    newGame: '新しい対局', undo: '待った', rematch: 'もう一局', you: 'あなた',
+    yourTurn: 'あなたの番です — 目地をクリックして壁を置く',
+    aiTurn: 'AIが考えています', aiPlaced: 'AIが壁を置きました。あなたの番です',
+    illegalMove: '1マスだけの領域を作る壁は置けません',
+    winOdd: '奇の勝ち', winEven: '偶の勝ち', youWin: 'あなたの勝ち!', youLose: 'AIの勝ち',
+    endEyebrow: '終局', viewBoard: '盤面を見る',
+    finalScore: (o, e) => `最終得点 奇 ${o} — 偶 ${e}`,
+    rulesTitle: 'ルール(30秒で読める)',
+    exampleCaption: `<b>終局図の例。</b>壁で盤が4つの島に分かれた。<br>9・5・3の島は奇数 → <span style="color:var(--odd)"><b>奇</b></span>のもの。8の島は偶数 → <span style="color:var(--even)"><b>偶</b></span>のもの。<br><b>奇 9+5+3=17、偶 8 → 奇の勝ち。</b>`,
+    rules: (ex) => `<p><b>遊び方は3行。</b></p>
+<ol style="margin:0.2em 0 0.7em 1.3em; padding:0">
+<li>交互に壁を1枚ずつ、マスの境目に置く(各8枚)。<b>16枚置いたら終了</b>。</li>
+<li>壁で区切られたマスのまとまり(=<b>島</b>)ごとに判定:マス数が<b>奇数</b>の島は全マスが<span style="color:var(--odd)"><b>奇</b></span>のもの、<b>偶数</b>の島は<span style="color:var(--even)"><b>偶</b></span>のもの。</li>
+<li><span style="color:var(--odd)"><b>奇</b></span>は合計<b>11マス以上</b>で勝ち。届かなければ<span style="color:var(--even)"><b>偶</b></span>の勝ち。引き分けはない。</li>
+</ol>
+${ex}
+<p><b>大事なこと</b></p>
+<ul style="margin:0.2em 0 0.4em 1.3em; padding:0">
+<li>採点されるのは<b>最後の盤面だけ</b>。途中の得点は「いま終わったら」の暫定値で、最後の壁までひっくり返る。</li>
+<li>禁じ手はひとつだけ:<b>1マスだけの島を作る壁</b>は置けない。</li>
+<li>壁は置いたら動かせず、誰のものでもない。相手の壁も自分の切断の一部に使える。</li>
+<li>偶奇の算術:奇数の島を割ると必ず「奇+偶」。偶数の島を割ると「奇+奇」か「偶+偶」。</li>
+</ul>`,
+    foot: '2人・完全情報・運なし。弱AI同士4万局で先手勝率50.07%、引き分けは構造的に0。強AI(MCTS)は1手読みAIに88.4%勝利。',
+    tutCaptions: [
+      'これから1局を見ながらルールを覚えましょう。盤は5×5の25マス。マスの境目(目地)に壁を置いていきます。今は盤全体がひとつの「島」(25マス=奇数)なので、暫定スコアは奇25-偶0。「次へ」で進みます。',
+      '先手の<b>奇</b>が壁を1枚置きました。壁は何かを切らなくてもOK。島が割れない限り、スコアは動きません。',
+      '後手の<b>偶</b>も1枚。お互い様子見です。各自の持ち壁は8枚、合計16枚置いたら終了します。',
+      '奇は盤の右側を縦に切り始めました。切断が起きるのは「繋がりが完全に断たれた瞬間」だけです。',
+      '偶も同じ縦線に乗ってきました。壁は置いた瞬間から誰のものでもありません — <b>相手の壁も自分の切断に使えます</b>。',
+      '縦の断層線が伸びていきます。まだどこも切れていないので、スコアは25-0のまま。',
+      'あと2枚で右上のブロックを切り離せそうです。',
+      '奇が下側を塞ぎました。次の1枚で切断が完成します。',
+      '<b>偶が切断を完成!</b>右上の8マスが独立した島になりました。8は偶数なので偶のもの。スコアは奇17-偶8に動きました。',
+      '奇は左上の内部に壁を足しました。今は何も切りませんが、あとで効いてくる伏線です。',
+      '偶は左半分を横に切り始めました。残っている17マスの島(奇数)が狙いです。',
+      '奇も同じ横線に応じます。この線が完成すると17の島が割れます。',
+      '<b>偶が完成!</b>17(奇数)の島が9(奇数)+8(偶数)に割れました。<b>奇数の島を割ると必ず「奇+偶」</b>に分かれます。偶の島は8+8=16マスとなり、偶が暫定リード!',
+      'しかし奇には狙いがあります。右下の8マス(偶数)の島に切り込み始めました。',
+      '偶は内部に守りの1枚。ですが…',
+      '<b>奇の大逆転!</b>8(偶数)の島が5+3 — 両方奇数に割れました。<b>偶数の島を割ると「奇+奇」か「偶+偶」</b>。偶の16点は一気に8点へ。スコアは奇17-偶8。',
+      '16枚目が置かれ<b>終局</b>。採点は最終盤面だけ:9・5・3(奇数)→奇17、8(偶数)→偶8。<b>奇17≥11で奇の勝ち!</b>途中で偶が16点リードしていたのを思い出してください — 最後の壁までひっくり返るゲームです。これはルール欄の例図と同じ盤面です。',
+    ],
+  },
+  en: {
+    tagline: 'DANSO — split the land with fault lines, claim it by parity',
+    odd: 'Odd', even: 'Even', walls: 'walls', goalOdd: 'wins at 11 (final)', goalEven: 'wins at 15 (final)',
+    progress: (p) => `Walls ${p}/16 — running score, settled at the end`,
+    progressDone: 'All 16 walls placed — game over',
+    youplay: 'You', ai: 'AI', oddFirst: 'Odd (first)', evenSecond: 'Even (second)',
+    aiWeak: 'Weak', aiMid: 'Medium', aiStrong: 'Strong',
+    mode: 'Mode', modeAI: 'vs AI', mode2p: '2 players',
+    tutorial: 'Tutorial', tutPrev: 'Back', tutNext: 'Next', tutExit: 'Exit',
+    firstTag: 'first', secondTag: 'second',
+    turnOdd: "Odd's turn — pick a seam to place a wall", turnEven: "Even's turn — pick a seam to place a wall",
+    tapConfirm: 'Tap again to confirm (tap elsewhere to reselect)',
+    newGame: 'New game', undo: 'Undo', rematch: 'Rematch', you: 'you',
+    yourTurn: 'Your turn — click a seam to place a wall',
+    aiTurn: 'AI is thinking', aiPlaced: 'AI placed a wall. Your turn',
+    illegalMove: 'A wall may not create a one-cell region',
+    winOdd: 'Odd wins', winEven: 'Even wins', youWin: 'You win!', youLose: 'AI wins',
+    endEyebrow: 'GAME OVER', viewBoard: 'View board',
+    finalScore: (o, e) => `Final score — Odd ${o}, Even ${e}`,
+    rulesTitle: 'Rules (30-second read)',
+    exampleCaption: `<b>Example final board.</b> The walls split it into 4 islands.<br>Islands of 9, 5, 3 are odd-sized → they belong to <span style="color:var(--odd)"><b>Odd</b></span>. The island of 8 is even-sized → it belongs to <span style="color:var(--even)"><b>Even</b></span>.<br><b>Odd 9+5+3 = 17, Even 8 → Odd wins.</b>`,
+    rules: (ex) => `<p><b>How to play, in 3 lines.</b></p>
+<ol style="margin:0.2em 0 0.7em 1.3em; padding:0">
+<li>Take turns placing one wall on a border between cells (8 walls each). <b>After 16 walls, the game ends.</b></li>
+<li>Each walled-off group of cells (an <b>island</b>) is judged: an <b>odd-sized</b> island belongs entirely to <span style="color:var(--odd)"><b>Odd</b></span>, an <b>even-sized</b> one to <span style="color:var(--even)"><b>Even</b></span>.</li>
+<li><span style="color:var(--odd)"><b>Odd</b></span> wins with <b>11+ cells</b> in total; otherwise <span style="color:var(--even)"><b>Even</b></span> wins. No draws exist.</li>
+</ol>
+${ex}
+<p><b>The important bits</b></p>
+<ul style="margin:0.2em 0 0.4em 1.3em; padding:0">
+<li>Only the <b>final board</b> is scored. The mid-game score is an "if it ended now" tally — it can flip until the very last wall.</li>
+<li>Just one forbidden move: a wall that would create a <b>one-cell island</b>.</li>
+<li>Walls never move and belong to no one — the opponent's walls serve your cuts too.</li>
+<li>Parity arithmetic: cutting an odd island always gives odd + even; cutting an even island gives odd + odd or even + even.</li>
+</ul>`,
+    foot: 'Two players, perfect information, no luck. First-player win rate 50.07% over 40,000 weak-AI games; draws structurally impossible. The strong AI (MCTS) beats a 1-ply AI 88.4% of the time.',
+    tutCaptions: [
+      "Let's learn the rules by watching one game. The board is 5×5 (25 cells); walls go on the borders between cells. Right now the whole board is a single island (25 cells = odd), so the running score is Odd 25 - Even 0. Press Next.",
+      '<b>Odd</b> (first player) placed a wall. A wall does not have to cut anything — the score only moves when an island actually splits.',
+      '<b>Even</b> answers. Both are probing. Each player has 8 walls; after 16 the game ends.',
+      'Odd starts cutting vertically on the right. A split happens only at the moment a group is fully disconnected.',
+      'Even joins the same fault line. Walls belong to no one — <b>your opponent’s walls serve your cuts too</b>.',
+      'The vertical fault grows. Nothing is cut yet, so the score stays 25-0.',
+      'Two more walls and the top-right block can be severed.',
+      'Odd sealed the lower side. One more wall completes the cut.',
+      '<b>Even completes the cut!</b> The top-right 8 cells become an island. 8 is even, so it belongs to Even. The score moves to Odd 17 - Even 8.',
+      'Odd adds a wall inside the top-left. It cuts nothing now — it is groundwork for later.',
+      'Even starts a horizontal cut on the left, aiming at the remaining 17-cell (odd) island.',
+      'Odd answers on the same line. When it completes, the 17-island will split.',
+      '<b>Even completes it!</b> The 17 (odd) island splits into 9 (odd) + 8 (even). <b>Cutting an odd island always gives odd + even.</b> Even now holds 8+8 = 16 cells — Even leads!',
+      'But Odd has a plan: it starts cutting into the bottom-right 8-cell (even) island.',
+      'Even plays a defensive wall inside its block. And yet…',
+      "<b>Odd's comeback!</b> The 8 (even) island splits into 5 + 3 — both odd. <b>Cutting an even island gives odd+odd or even+even.</b> Even's 16 points collapse to 8. Score: Odd 17 - Even 8.",
+      'The 16th wall ends the game. Only the final board is scored: 9, 5, 3 (odd) → Odd 17; 8 (even) → Even 8. <b>Odd wins with 17 ≥ 11!</b> Remember Even led 16-9 in the middle — this game can flip until the very last wall. This is the same board as the example in the rules.',
+    ],
+  },
+};
+let lang = 'ja';
+
+/* ================= UI state ================ */
+const AI_LEVELS = { weak: { kind: 'greedy' }, mid: { kind: 'mcts', maxIters: 400, timeMs: 800 }, strong: { kind: 'mcts', maxIters: 30000, timeMs: 1500 } };
+let mode = 'ai';          // 'ai' = vs AI, '2p' = local two players
+let humanPlayer = 1;      // 1 = Odd (first), 2 = Even (second); used in 'ai' mode
+let aiLevel = 'strong';
+let state = initial();
+let history = [];
+let gameOver = false;
+let aiBusy = false;
+let lastMove = -1;
+let tut = null;           // null or { step: 0..16 } — guided tutorial replay
+let pendingSeam = null;   // two-tap confirm on touch devices
+let aiGen = 0;            // invalidates in-flight AI searches on reset/tutorial
+const COARSE = matchMedia('(pointer: coarse)').matches;
+function isHumanTurn() { return !tut && (mode === '2p' || state.toMove === humanPlayer); }
+
+// tutorial: a scripted, engine-verified 16-move game (ends on the rules-example board 9/8/5/3)
+const TUT_CELL_PAIRS = [
+  [0, 1], [3, 4], [2, 3], [7, 8], [12, 13], [17, 18], [18, 23], [19, 24],
+  [6, 11], [10, 15], [11, 16], [12, 17], [17, 22], [13, 14], [21, 22], [16, 21],
+];
+const TUT_MOVES = TUT_CELL_PAIRS.map(([a, b]) =>
+  seams.findIndex(([x, y]) => (x === a && y === b) || (x === b && y === a)));
+
+/* ================= board rendering ================ */
+const CELL = 76, PAD = 20, BOARD = SIZE * CELL + PAD * 2;
+const svg = document.getElementById('board');
+svg.setAttribute('viewBox', `0 0 ${BOARD} ${BOARD}`);
+const SVGNS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function seamGeom(i, cell = CELL, pad = PAD) { // returns {x1,y1,x2,y2} of the wall segment
+  const [a, b] = seams[i];
+  const ar = (a / SIZE) | 0, ac = a % SIZE;
+  if (b === a + 1) { // vertical wall between horizontal neighbors
+    const x = pad + (ac + 1) * cell, y = pad + ar * cell;
+    return { x1: x, y1: y, x2: x, y2: y + cell };
+  } else { // horizontal wall
+    const x = pad + ac * cell, y = pad + (ar + 1) * cell;
+    return { x1: x, y1: y, x2: x + cell, y2: y };
+  }
+}
+// small static example board for the rules panel: islands 9 / 8 / 5 / 3
+function exampleBoardSVG() {
+  const pairs = [[2,3],[7,8],[12,13],[10,15],[11,16],[12,17],[17,18],[17,22],[21,22],[18,23],[19,24]];
+  const walls = new Uint8Array(NSEAMS);
+  for (const [a, b] of pairs) {
+    const i = seams.findIndex(([x, y]) => (x === a && y === b) || (x === b && y === a));
+    if (i >= 0) walls[i] = 1;
+  }
+  const CE = 24, P = 4, S = SIZE * CE + P * 2;
+  const { label, sizes } = regionInfo(walls);
+  let cells = '', lines = '', texts = '';
+  for (let i = 0; i < N; i++) {
+    const r = (i / SIZE) | 0, c = i % SIZE;
+    const oddR = sizes[label[i]] % 2 === 1;
+    cells += `<rect x="${P + c * CE + 0.5}" y="${P + r * CE + 0.5}" width="${CE - 1}" height="${CE - 1}" rx="2" fill="var(--${oddR ? 'odd' : 'even'}-tint)"/>`;
+  }
+  for (let i = 0; i < NSEAMS; i++) {
+    if (!walls[i]) continue;
+    const g = seamGeom(i, CE, P);
+    lines += `<line x1="${g.x1}" y1="${g.y1}" x2="${g.x2}" y2="${g.y2}" stroke="var(--wall)" stroke-width="3" stroke-linecap="round"/>`;
+  }
+  for (const lc of [6, 8, 16, 23]) {
+    const r = (lc / SIZE) | 0, c = lc % SIZE;
+    const sz = sizes[label[lc]], oddR = sz % 2 === 1;
+    texts += `<text x="${P + c * CE + CE / 2}" y="${P + r * CE + CE / 2 + 4}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--${oddR ? 'odd' : 'even'})">${sz}</text>`;
+  }
+  return `<svg viewBox="0 0 ${S} ${S}" width="${S}" height="${S}" style="flex:none" aria-hidden="true">${cells}${lines}<rect x="${P}" y="${P}" width="${SIZE * CE}" height="${SIZE * CE}" fill="none" stroke="var(--wall)" stroke-width="2.5" rx="2"/>${texts}</svg>`;
+}
+function render() {
+  svg.textContent = '';
+  const { label, sizes } = regionInfo(state.walls);
+  // cells tinted by region parity
+  for (let i = 0; i < N; i++) {
+    const r = (i / SIZE) | 0, c = i % SIZE;
+    const oddR = sizes[label[i]] % 2 === 1;
+    svg.appendChild(el('rect', {
+      x: PAD + c * CELL + 1, y: PAD + r * CELL + 1, width: CELL - 2, height: CELL - 2,
+      rx: 3, fill: oddR ? 'var(--odd-tint)' : 'var(--even-tint)',
+    }));
+  }
+  // faint seam guides (unwalled)
+  for (let i = 0; i < NSEAMS; i++) {
+    if (state.walls[i]) continue;
+    const g = seamGeom(i);
+    svg.appendChild(el('line', {
+      x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+      stroke: 'var(--line)', 'stroke-width': 1.5, 'stroke-dasharray': '3 5', 'stroke-linecap': 'round',
+    }));
+  }
+  // outer frame
+  svg.appendChild(el('rect', {
+    x: PAD, y: PAD, width: SIZE * CELL, height: SIZE * CELL,
+    fill: 'none', stroke: 'var(--wall)', 'stroke-width': 5, rx: 4,
+  }));
+  // region size labels (one per region, on cell nearest centroid)
+  const regCells = sizes.map(() => []);
+  for (let i = 0; i < N; i++) regCells[label[i]].push(i);
+  regCells.forEach((cells, id) => {
+    let cr = 0, cc = 0;
+    for (const i of cells) { cr += (i / SIZE) | 0; cc += i % SIZE; }
+    cr /= cells.length; cc /= cells.length;
+    let bestCell = cells[0], bd = Infinity;
+    for (const i of cells) {
+      const d = Math.abs(((i / SIZE) | 0) - cr) + Math.abs((i % SIZE) - cc);
+      if (d < bd) { bd = d; bestCell = i; }
+    }
+    const r = (bestCell / SIZE) | 0, c = bestCell % SIZE;
+    const oddR = sizes[id] % 2 === 1;
+    svg.appendChild(el('text', {
+      x: PAD + c * CELL + CELL / 2, y: PAD + r * CELL + CELL / 2 + 7,
+      'text-anchor': 'middle', 'font-size': 20, 'font-weight': 700,
+      fill: oddR ? 'var(--odd)' : 'var(--even)', opacity: 0.85,
+      'pointer-events': 'none', 'font-family': 'inherit',
+    })).textContent = sizes[id];
+  });
+  // placed walls
+  for (let i = 0; i < NSEAMS; i++) {
+    if (!state.walls[i]) continue;
+    const g = seamGeom(i);
+    const over = 4; // ink overshoot so fault lines connect visually
+    const dx = g.x2 - g.x1 ? over : 0, dy = g.y2 - g.y1 ? over : 0;
+    svg.appendChild(el('line', {
+      x1: g.x1 - dx, y1: g.y1 - dy, x2: g.x2 + dx, y2: g.y2 + dy,
+      stroke: i === lastMove ? 'var(--illegal)' : 'var(--wall)',
+      'stroke-width': i === lastMove ? 8 : 7, 'stroke-linecap': 'round',
+    }));
+  }
+  // pending two-tap selection (touch): persistent preview awaiting confirmation
+  if (pendingSeam !== null && !state.walls[pendingSeam]) {
+    const g = seamGeom(pendingSeam);
+    svg.appendChild(el('line', {
+      x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+      stroke: 'var(--wall-preview)', 'stroke-width': 8, 'stroke-linecap': 'round',
+      'pointer-events': 'none',
+    }));
+  }
+  // interactive seam hit areas
+  if (!gameOver && !aiBusy && isHumanTurn()) {
+    const thick = COARSE ? 30 : 22; // bigger touch targets on coarse pointers
+    for (let i = 0; i < NSEAMS; i++) {
+      if (state.walls[i]) continue;
+      const g = seamGeom(i);
+      const hor = g.y1 === g.y2;
+      const hit = el('rect', {
+        x: Math.min(g.x1, g.x2) - (hor ? 4 : thick / 2), y: Math.min(g.y1, g.y2) - (hor ? thick / 2 : 4),
+        width: hor ? CELL + 8 : thick, height: hor ? thick : CELL + 8,
+        fill: 'transparent', 'class': 'seamhit', tabindex: '0', role: 'button',
+        'aria-label': 'seam ' + i, cursor: 'pointer',
+      });
+      const preview = () => {
+        if (COARSE) return; // hover previews are meaningless on touch
+        if (document.getElementById('pv')) document.getElementById('pv').remove();
+        const legal = isLegal(state.walls, i);
+        const p = el('line', {
+          id: 'pv', x1: g.x1, y1: g.y1, x2: g.x2, y2: g.y2,
+          stroke: legal ? 'var(--wall-preview)' : 'var(--illegal)',
+          'stroke-width': 7, 'stroke-linecap': 'round', 'pointer-events': 'none',
+          'stroke-dasharray': legal ? 'none' : '4 6', opacity: legal ? 1 : 0.7,
+        });
+        svg.appendChild(p);
+      };
+      hit.addEventListener('mouseenter', preview);
+      hit.addEventListener('focus', preview);
+      hit.addEventListener('mouseleave', () => { const p = document.getElementById('pv'); if (p) p.remove(); });
+      hit.addEventListener('blur', () => { const p = document.getElementById('pv'); if (p) p.remove(); });
+      hit.addEventListener('click', () => {
+        if (COARSE) {
+          if (pendingSeam !== i) { // first tap: select + preview
+            if (!isLegal(state.walls, i)) { toast(t('illegalMove')); return; }
+            pendingSeam = i;
+            render();
+            $('status').textContent = t('tapConfirm');
+            return;
+          }
+          pendingSeam = null; // second tap on same seam: confirm
+        }
+        humanPlay(i);
+      });
+      hit.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); humanPlay(i); } });
+      svg.appendChild(hit);
+    }
+  }
+  updatePanel();
+}
+
+/* ================= panel / status ================ */
+const $ = (id) => document.getElementById(id);
+function t(key) { return I18N[lang][key]; }
+function updatePanel() {
+  const odd = oddSum(state.walls), even = N - odd;
+  $('pts-odd').textContent = odd;
+  $('pts-even').textContent = even;
+  $('oddbar').style.width = (100 * odd / N) + '%';
+  $('progress').textContent = (gameOver || state.placed >= TOTAL_WALLS) ? t('progressDone') : I18N[lang].progress(state.placed);
+  const oddPlaced = Math.ceil(state.placed / 2), evenPlaced = Math.floor(state.placed / 2);
+  $('walls-odd').textContent = '▮'.repeat(BUDGET - oddPlaced) + '▯'.repeat(oddPlaced);
+  $('walls-even').textContent = '▮'.repeat(BUDGET - evenPlaced) + '▯'.repeat(evenPlaced);
+  if (mode === '2p' || tut) {
+    $('tag-odd').textContent = t('firstTag');
+    $('tag-even').textContent = t('secondTag');
+  } else {
+    $('tag-odd').textContent = humanPlayer === 1 ? t('you') : 'AI';
+    $('tag-even').textContent = humanPlayer === 2 ? t('you') : 'AI';
+  }
+  const st = $('status');
+  if (gameOver) {
+    const w = winner(state);
+    const youWon = w === humanPlayer;
+    const tail = mode === 'ai'
+      ? `<span style="color:var(--ink-soft);font-weight:600">${youWon ? t('youWin') : t('youLose')}</span>` : '';
+    st.innerHTML =
+      `<div class="endbanner ${w === 1 ? 'odd' : 'even'}">` +
+      `<span class="flag">${t('endEyebrow')}</span>` +
+      `<span class="w">${w === 1 ? t('winOdd') : t('winEven')}</span>` +
+      `<span style="font-variant-numeric:tabular-nums">${odd} — ${even}</span>` +
+      tail +
+      `</div>`;
+  } else if (aiBusy) {
+    st.innerHTML = `${t('aiTurn')}<span class="thinking"></span>`;
+  } else if (mode === '2p') {
+    st.textContent = state.toMove === 1 ? t('turnOdd') : t('turnEven');
+  } else if (state.toMove === humanPlayer) {
+    st.textContent = state.placed > 0 ? t('aiPlaced') : t('yourTurn');
+  }
+  $('undo').disabled = aiBusy || history.length === 0 || !!tut;
+}
+
+/* ================= game flow ================ */
+function humanPlay(i) {
+  if (gameOver || aiBusy || !isHumanTurn()) return;
+  if (!isLegal(state.walls, i)) { toast(t('illegalMove')); return; }
+  pendingSeam = null;
+  history.push({ state, lastMove });
+  state = apply(state, i); lastMove = i;
+  afterMove();
+}
+function afterMove() {
+  const w = winner(state);
+  if (w !== null) { gameOver = true; render(); showResult(w); return; }
+  render();
+  if (mode === 'ai' && state.toMove !== humanPlayer) scheduleAI();
+}
+function scheduleAI() {
+  aiBusy = true; updatePanel();
+  const lvl = AI_LEVELS[aiLevel];
+  const gen = ++aiGen;
+  const go = (mv) => {
+    if (gen !== aiGen) return; // board was reset while thinking
+    aiBusy = false;
+    history.push({ state, lastMove });
+    state = apply(state, mv); lastMove = mv;
+    afterMove();
+  };
+  if (lvl.kind === 'greedy') setTimeout(() => go(greedyMove(state)), 350);
+  else mctsMove(state, lvl, go);
+}
+function showResult(w) {
+  const youWon = w === humanPlayer;
+  const odd = oddSum(state.walls), even = N - odd;
+  const winColor = w === 1 ? 'var(--odd)' : 'var(--even)';
+  const sideWin = w === 1 ? t('winOdd') : t('winEven');
+  $('result-eyebrow').textContent = t('endEyebrow');
+  $('result-title').textContent = mode === 'ai' ? (youWon ? t('youWin') : t('youLose')) : sideWin;
+  $('result-title').style.color = winColor;
+  $('result-box').style.borderTopColor = winColor;
+  $('rs-odd-nm').textContent = t('odd');
+  $('rs-even-nm').textContent = t('even');
+  $('rs-odd').textContent = odd;
+  $('rs-even').textContent = even;
+  $('rs-bar').style.width = (100 * odd / N) + '%';
+  $('result-detail').textContent = mode === 'ai'
+    ? `${sideWin}(${w === humanPlayer ? t('you') : 'AI'}) · ${I18N[lang].finalScore(odd, even)}`
+    : I18N[lang].finalScore(odd, even);
+  $('overlay').classList.add('show');
+}
+function newGame() {
+  if (tut) { exitTutorialUI(); }
+  aiGen++;
+  state = initial(); history = []; gameOver = false; aiBusy = false; lastMove = -1; pendingSeam = null;
+  $('overlay').classList.remove('show');
+  render();
+  if (mode === 'ai' && humanPlayer !== 1) scheduleAI();
+}
+function undo() {
+  if (aiBusy || tut || history.length === 0) return;
+  let h = history.pop();
+  if (mode === 'ai') {
+    // pop until it's the human's turn again (usually 2 plies)
+    while (history.length > 0 && h.state.toMove !== humanPlayer) h = history.pop();
+    if (h.state.toMove !== humanPlayer) { history.push(h); return; } // can't undo past AI's opening
+  }
+  state = h.state; lastMove = h.lastMove; gameOver = false; pendingSeam = null;
+  $('overlay').classList.remove('show');
+  render();
+}
+
+/* ================= tutorial ================ */
+function exitTutorialUI() {
+  tut = null;
+  $('status').style.display = '';
+  $('tutbox').style.display = 'none';
+  $('newgame').disabled = false;
+  $('tut-start').disabled = false;
+}
+function startTutorial() {
+  tut = { step: 0 };
+  aiGen++;
+  aiBusy = false; gameOver = false; history = []; pendingSeam = null;
+  $('overlay').classList.remove('show');
+  $('status').style.display = 'none';
+  $('tutbox').style.display = 'block';
+  $('newgame').disabled = true;
+  $('tut-start').disabled = true;
+  tutSet(0);
+}
+function tutSet(step) {
+  tut.step = step;
+  let s = initial();
+  for (let i = 0; i < step; i++) s = apply(s, TUT_MOVES[i]);
+  state = s;
+  lastMove = step > 0 ? TUT_MOVES[step - 1] : -1;
+  render();
+  if (step > 0) { // pulse the cells whose island size just changed (i.e. a cut happened)
+    let sp = initial();
+    for (let i = 0; i < step - 1; i++) sp = apply(sp, TUT_MOVES[i]);
+    const a = regionInfo(sp.walls), b = regionInfo(state.walls);
+    const rects = svg.querySelectorAll('rect'); // first N rects are the cells
+    for (let c = 0; c < N; c++) {
+      if (a.sizes[a.label[c]] !== b.sizes[b.label[c]]) rects[c].classList.add('cellpulse');
+    }
+  }
+  $('tut-caption').innerHTML = I18N[lang].tutCaptions[step];
+  $('tut-count').textContent = `${step}/16`;
+  $('tut-prev').disabled = step === 0;
+  $('tut-next').disabled = step === 16;
+}
+function toast(msg) {
+  const el = $('toast'); el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+/* ================= controls ================ */
+function setLang(l) {
+  lang = l;
+  $('lang-ja').setAttribute('aria-pressed', l === 'ja');
+  $('lang-en').setAttribute('aria-pressed', l === 'en');
+  document.documentElement.lang = l;
+  document.querySelectorAll('[data-i18n]').forEach((n) => {
+    const k = n.getAttribute('data-i18n');
+    if (typeof I18N[l][k] === 'string') n.textContent = I18N[l][k];
+  });
+  const exampleRow =
+    `<div style="display:flex; gap:12px; align-items:center; margin:2px 0 10px; flex-wrap:wrap">` +
+    exampleBoardSVG() +
+    `<div style="font-size:0.8rem; color:var(--ink-soft); line-height:1.55; min-width:180px; flex:1">${I18N[l].exampleCaption}</div></div>`;
+  $('rules-body').innerHTML = I18N[l].rules(exampleRow);
+  if (tut) { $('tut-caption').innerHTML = I18N[l].tutCaptions[tut.step]; }
+  updatePanel();
+}
+$('lang-ja').addEventListener('click', () => setLang('ja'));
+$('lang-en').addEventListener('click', () => setLang('en'));
+function setSide(p) {
+  humanPlayer = p;
+  $('side-odd').setAttribute('aria-pressed', p === 1);
+  $('side-even').setAttribute('aria-pressed', p === 2);
+  newGame();
+}
+$('side-odd').addEventListener('click', () => setSide(1));
+$('side-even').addEventListener('click', () => setSide(2));
+function setAI(lv) {
+  aiLevel = lv;
+  for (const k of ['weak', 'mid', 'strong']) $('ai-' + k).setAttribute('aria-pressed', k === lv);
+}
+$('ai-weak').addEventListener('click', () => setAI('weak'));
+$('ai-mid').addEventListener('click', () => setAI('mid'));
+$('ai-strong').addEventListener('click', () => setAI('strong'));
+function setMode(m) {
+  mode = m;
+  $('mode-ai').setAttribute('aria-pressed', m === 'ai');
+  $('mode-2p').setAttribute('aria-pressed', m === '2p');
+  $('row-side').style.display = m === 'ai' ? '' : 'none';
+  $('row-ai').style.display = m === 'ai' ? '' : 'none';
+  newGame();
+}
+$('mode-ai').addEventListener('click', () => setMode('ai'));
+$('mode-2p').addEventListener('click', () => setMode('2p'));
+$('newgame').addEventListener('click', newGame);
+$('rematch').addEventListener('click', newGame);
+$('viewboard').addEventListener('click', () => $('overlay').classList.remove('show'));
+$('undo').addEventListener('click', undo);
+$('tut-start').addEventListener('click', startTutorial);
+$('tut-next').addEventListener('click', () => { if (tut) tutSet(Math.min(16, tut.step + 1)); });
+$('tut-prev').addEventListener('click', () => { if (tut) tutSet(Math.max(0, tut.step - 1)); });
+$('tut-exit').addEventListener('click', () => { exitTutorialUI(); newGame(); });
+
+setLang('ja');
+render();
+</script>
