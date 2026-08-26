@@ -42,6 +42,7 @@ src/parallel.js    8並列ベンチマーク
 src/scan*.js       バランス調整に使ったグリッド走査
 src/instrument.js  接戦度・逆転率・初手多様性の計測
 src/test_engine.js エンジン単体テスト
+src/verify_tutorial.js チュートリアル教材譜の合法性・スコア推移の検証
 ```
 
 例: `node src/parallel.js src/game.js '{"T":11,"firstRole":"odd","budgetFirst":8,"budgetSecond":8}' greedy greedy 10000 999001 8`
