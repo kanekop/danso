@@ -1,16 +1,6 @@
 'use strict';
 // Two-stage scan: greedy 10k filter [48,52] -> mcts:300 1000-game check.
-const { spawnSync } = require('child_process');
-const path = require('path');
-
-function run(v, ai, n, seed) {
-  const r = spawnSync(process.execPath, [
-    path.join(__dirname, 'parallel.js'), path.join(__dirname, 'game.js'),
-    JSON.stringify(v), ai, ai, String(n), String(seed), '8',
-  ], { encoding: 'utf8' });
-  if (r.status !== 0) throw new Error('run failed: ' + r.stderr);
-  return JSON.parse(r.stdout);
-}
+const { run } = require('./scan_util');
 
 const candidates = [];
 for (const T of [11, 13, 15])

@@ -1,0 +1,11 @@
+{
+  "name": "danso",
+  "private": true,
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node src/test_engine.js && node src/test_ui_engine.js && node src/test_ai.js && node src/verify_tutorial.js",
+    "bench": "node src/parallel.js src/game.js '{\"T\":11,\"firstRole\":\"odd\",\"budgetFirst\":8,\"budgetSecond\":8}' greedy greedy 10000 999001 8"
+  }
+}

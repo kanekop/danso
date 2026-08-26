@@ -65,8 +65,7 @@ function mctsAI(rng, iterations, opts = {}) {
   return {
     name: `mcts${iterations}`,
     chooseMove(game, rootState) {
-      const rootPlayer = game.player(rootState);
-      const root = { state: rootState, moves: game.legalMoves(rootState), children: [], visits: 0, wins: 0, untried: null, move: null, parent: null, player: rootPlayer };
+      const root = { state: rootState, moves: game.legalMoves(rootState), children: [], visits: 0, wins: 0, untried: null, move: null, parent: null };
       root.untried = root.moves.slice();
       if (root.moves.length === 1) return root.moves[0];
 
@@ -90,12 +89,9 @@ function mctsAI(rng, iterations, opts = {}) {
           node.untried.splice(idx, 1);
           state = game.apply(state, move);
           const child = {
-            state, move, parent: node, visits: 0, wins: 0,
-            children: [], player: node.player === 1 ? 2 : 1,
+            state, move, parent: node, visits: 0, wins: 0, children: [],
             untried: game.winner(state) === null ? game.legalMoves(state) : [],
           };
-          // child.player is the player who is "to move" naively; recompute properly:
-          child.player = game.winner(state) === null ? game.player(state) : 0;
           node.children.push(child);
           node = child;
         }

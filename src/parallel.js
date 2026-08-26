@@ -6,24 +6,37 @@ const { spawn } = require('child_process');
 const os = require('os');
 const path = require('path');
 const { wilson } = require('./sim');
+const { setUsage, requireArgs, parseIntStrict, parsePositiveInt } = require('./cli_util');
+
+setUsage('node parallel.js <gameModulePath> <variantJSON> <aiA> <aiB> <totalN> <baseSeed> [workers]');
 
 const [, , gamePath, variantJson, aiA, aiB, totalNStr, baseSeedStr, workersStr] = process.argv;
-const totalN = parseInt(totalNStr, 10);
-const baseSeed = parseInt(baseSeedStr, 10);
-const workers = parseInt(workersStr || '8', 10);
+requireArgs(['gameModulePath', 'variantJSON', 'aiA', 'aiB', 'totalN', 'baseSeed'],
+  [gamePath, variantJson, aiA, aiB, totalNStr, baseSeedStr]);
+const totalN = parsePositiveInt('totalN', totalNStr);
+const baseSeed = parseIntStrict('baseSeed', baseSeedStr);
+const workers = parsePositiveInt('workers', workersStr || '8');
 
 const per = Math.ceil(totalN / workers);
 const jobs = [];
 for (let w = 0; w < workers; w++) {
   const n = Math.min(per, totalN - w * per);
   if (n <= 0) break;
+  const seed = baseSeed + w * 1000003;
+  const who = 'worker ' + w + ' (seed ' + seed + ')';
   jobs.push(new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [
-      path.join(__dirname, 'bench.js'), gamePath, variantJson, aiA, aiB, String(n), String(baseSeed + w * 1000003),
+      path.join(__dirname, 'bench.js'), gamePath, variantJson, aiA, aiB, String(n), String(seed),
     ], { stdio: ['ignore', 'pipe', 'inherit'] });
     let out = '';
     child.stdout.on('data', (d) => { out += d; });
-    child.on('close', (code) => code === 0 ? resolve(JSON.parse(out)) : reject(new Error('worker exited ' + code)));
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(who + ' exited ' + code));
+      // Tolerate extra stdout chatter: only the last non-empty line is the result JSON.
+      const line = out.trim().split('\n').pop();
+      try { resolve(JSON.parse(line)); }
+      catch (e) { reject(new Error(who + ' printed unparsable output: ' + e.message + ' | last line: ' + JSON.stringify(line))); }
+    });
   }));
 }
 

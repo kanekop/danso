@@ -7,7 +7,7 @@
 
 **→ https://kanekop.github.io/danso/** (GitHub Pages)
 
-またはリポジトリの [index.html](index.html) をブラウザで開くだけ(サーバー不要・1ファイル・外部通信なし)。
+またはリポジトリ [kanekop/danso](https://github.com/kanekop/danso) の [index.html](index.html) をブラウザで開くだけ(サーバー不要・1ファイル・外部通信なし)。
 
 - **AI対戦**: よわい(1手読み)/ふつう(MCTS400)/つよい(時間制限付きMCTS 約1.5秒/手)
 - **ふたりで**: 同じ端末での対人戦
@@ -39,10 +39,18 @@ src/ai.js          random / greedy(1手読み) / MCTS(UCT)
 src/sim.js         対戦ランナー+Wilson信頼区間
 src/bench.js       単一ベンチマークCLI
 src/parallel.js    8並列ベンチマーク
-src/scan*.js       バランス調整に使ったグリッド走査
+src/scan*.js       バランス調整に使ったグリッド走査(src/scan_util.js が共通ランナー)
 src/instrument.js  接戦度・逆転率・初手多様性の計測
-src/test_engine.js エンジン単体テスト
-src/verify_tutorial.js チュートリアル教材譜の合法性・スコア推移の検証
+src/cli_util.js    CLI引数の検証
 ```
 
-例: `node src/parallel.js src/game.js '{"T":11,"firstRole":"odd","budgetFirst":8,"budgetSecond":8}' greedy greedy 10000 999001 8`
+テスト(`npm test` がこの4つを順に実行):
+
+```
+src/test_engine.js     エンジン単体テスト + 高速版/素朴版 legalMoves の照合
+src/test_ui_engine.js  index.html 内の複製エンジンと src/game.js の一致検証
+src/test_ai.js         random / greedy / MCTS の健全性・決定性・視点の検証
+src/verify_tutorial.js チュートリアル教材譜(index.html から抽出)の合法性・スコア推移の検証
+```
+
+例: `node src/parallel.js src/game.js '{"T":11,"firstRole":"odd","budgetFirst":8,"budgetSecond":8}' greedy greedy 10000 999001 8`(= `npm run bench`)

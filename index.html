@@ -1,3 +1,5 @@
+<!DOCTYPE html>
+<html lang="ja">
 <title>断層 DANSO</title>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -298,9 +300,20 @@ for (let r = 0; r < SIZE - 1; r++) for (let c = 0; c < SIZE; c++) seams.push([r 
 const NSEAMS = seams.length;
 const cellSeams = Array.from({ length: N }, () => []);
 seams.forEach(([a, b], i) => { cellSeams[a].push([i, b]); cellSeams[b].push([i, a]); });
+// flat mirrors of seams / cellSeams for the bridge scan (hot path)
+const seamA = new Int32Array(NSEAMS), seamB = new Int32Array(NSEAMS);
+seams.forEach(([a, b], i) => { seamA[i] = a; seamB[i] = b; });
+const adjStart = new Int32Array(N + 1);
+const adjSeam = new Int32Array(2 * NSEAMS), adjOther = new Int32Array(2 * NSEAMS);
+for (let c = 0, k = 0; c < N; c++) {
+  adjStart[c] = k;
+  for (const [s, o] of cellSeams[c]) { adjSeam[k] = s; adjOther[k] = o; k++; }
+  adjStart[c + 1] = k;
+}
 
 const markBuf = new Int32Array(N); let stampC = 0; const stk = new Int32Array(N);
 function compSize(walls, start, extra) {
+  if (stampC >= 0x7ffffffe) { markBuf.fill(0); stampC = 0; }
   const st = ++stampC; let top = 0, cnt = 0;
   stk[top++] = start; markBuf[start] = st;
   while (top > 0) {
@@ -313,6 +326,7 @@ function compSize(walls, start, extra) {
   return cnt;
 }
 function reaches(walls, a, b, extra) {
+  if (stampC >= 0x7ffffffe) { markBuf.fill(0); stampC = 0; }
   const st = ++stampC; let top = 0;
   stk[top++] = a; markBuf[a] = st;
   while (top > 0) {
@@ -357,7 +371,62 @@ function oddSum(walls) {
 }
 function initial() { return { walls: new Uint8Array(NSEAMS), placed: 0, toMove: 1 }; } // player1 = Odd
 function apply(s, m) { const w = s.walls.slice(); w[m] = 1; return { walls: w, placed: s.placed + 1, toMove: 3 - s.toMove }; }
-function legalMoves(s) { const ms = []; for (let i = 0; i < NSEAMS; i++) if (isLegal(s.walls, i)) ms.push(i); return ms; }
+// One Tarjan DFS per region decides every seam: an unwalled seam splits its
+// region only if it is a bridge, and a bridge is legal iff both sides keep 2+
+// cells (side sizes come from the DFS subtree sizes).
+const disc = new Int32Array(N), low = new Int32Array(N);
+const subSize = new Int32Array(N), parSeam = new Int32Array(N);
+const adjIter = new Int32Array(N), dfsStack = new Int32Array(N);
+const order = new Int32Array(N), regSize = new Int32Array(N);
+function legalMoves(s) {
+  const walls = s.walls;
+  disc.fill(-1);
+  let timer = 0, seen = 0;
+  for (let root = 0; root < N; root++) {
+    if (disc[root] !== -1) continue;
+    const compStart = seen;
+    disc[root] = low[root] = timer++;
+    subSize[root] = 1; parSeam[root] = -1; adjIter[root] = adjStart[root];
+    order[seen++] = root;
+    let top = 0;
+    dfsStack[top++] = root;
+    while (top > 0) {
+      const v = dfsStack[top - 1];
+      if (adjIter[v] < adjStart[v + 1]) {
+        const k = adjIter[v]++;
+        const sm = adjSeam[k], w = adjOther[k];
+        if (walls[sm] || sm === parSeam[v]) continue; // no multi-edges
+        if (disc[w] === -1) {
+          disc[w] = low[w] = timer++;
+          subSize[w] = 1; parSeam[w] = sm; adjIter[w] = adjStart[w];
+          order[seen++] = w;
+          dfsStack[top++] = w;
+        } else if (disc[w] < low[v]) low[v] = disc[w];
+      } else {
+        top--;
+        if (top > 0) {
+          const p = dfsStack[top - 1];
+          if (low[v] < low[p]) low[p] = low[v];
+          subSize[p] += subSize[v];
+        }
+      }
+    }
+    const total = subSize[root];
+    for (let k = compStart; k < seen; k++) regSize[order[k]] = total;
+  }
+  const ms = [];
+  for (let i = 0; i < NSEAMS; i++) {
+    if (walls[i]) continue;
+    const a = seamA[i], b = seamB[i];
+    let child = -1, par = -1;
+    if (parSeam[a] === i) { child = a; par = b; }
+    else if (parSeam[b] === i) { child = b; par = a; }
+    if (child < 0 || low[child] <= disc[par]) { ms.push(i); continue; }
+    const side = subSize[child];
+    if (side >= 2 && regSize[child] - side >= 2) ms.push(i);
+  }
+  return ms;
+}
 function randomMove(s, rnd) {
   const open = []; for (let i = 0; i < NSEAMS; i++) if (!s.walls[i]) open.push(i);
   while (open.length) {
@@ -646,6 +715,7 @@ function render() {
     svg.appendChild(el('rect', {
       x: PAD + c * CELL + 1, y: PAD + r * CELL + 1, width: CELL - 2, height: CELL - 2,
       rx: 3, fill: oddR ? 'var(--odd-tint)' : 'var(--even-tint)',
+      'data-cell': String(i),
     }));
   }
   // faint seam guides (unwalled)
@@ -894,9 +964,10 @@ function tutSet(step) {
     let sp = initial();
     for (let i = 0; i < step - 1; i++) sp = apply(sp, TUT_MOVES[i]);
     const a = regionInfo(sp.walls), b = regionInfo(state.walls);
-    const rects = svg.querySelectorAll('rect'); // first N rects are the cells
     for (let c = 0; c < N; c++) {
-      if (a.sizes[a.label[c]] !== b.sizes[b.label[c]]) rects[c].classList.add('cellpulse');
+      if (a.sizes[a.label[c]] === b.sizes[b.label[c]]) continue;
+      const rect = svg.querySelector('rect[data-cell="' + c + '"]');
+      if (rect) rect.classList.add('cellpulse');
     }
   }
   $('tut-caption').innerHTML = I18N[lang].tutCaptions[step];

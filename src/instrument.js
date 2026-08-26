@@ -3,10 +3,14 @@
 // Usage: node instrument.js <aiSpec> <nGames> <seed>
 const makeGame = require('./game');
 const { makeRng, randomAI, greedyAI, mctsAI } = require('./ai');
+const { setUsage, parseIntStrict, parsePositiveInt } = require('./cli_util');
 
+setUsage('node instrument.js <aiSpec> <nGames> <seed>');
+
+// All three argv are optional; validate only what was actually supplied.
 const spec = process.argv[2] || 'greedy';
-const n = parseInt(process.argv[3] || '2000', 10);
-const seed = parseInt(process.argv[4] || '2025', 10);
+const n = process.argv[3] ? parsePositiveInt('nGames', process.argv[3]) : 2000;
+const seed = process.argv[4] ? parseIntStrict('seed', process.argv[4]) : 2025;
 
 function factory(spec, rng) {
   if (spec === 'random') return randomAI(rng);

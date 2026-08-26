@@ -9,7 +9,23 @@ function check(name, cond) {
   else console.log('ok:', name);
 }
 
-const g = makeGame({});
+// shipped rules
+const SHIPPED = { T: 11, firstRole: 'odd', budgetFirst: 8, budgetSecond: 8 };
+const g = makeGame(SHIPPED);
+
+// 0. the no-variant defaults are the shipped rules. Every other test names its
+// variant explicitly, so without this the defaults could drift back unnoticed.
+{
+  const d = makeGame({});
+  check('default T = 11', d.T === SHIPPED.T);
+  check('default firstRole = odd', d.firstRole === SHIPPED.firstRole);
+  check('default totalWalls = 16', d.totalWalls === SHIPPED.budgetFirst + SHIPPED.budgetSecond);
+  check('default size = 5 (40 seams)', d.nSeams === 40);
+  const rng = makeRng(31337);
+  let s = d.initial(), plies = 0;
+  while (d.winner(s) === null) { s = d.apply(s, d.randomMove(s, rng)); plies++; }
+  check('default rules play out in 16 plies', plies === 16);
+}
 
 // 1. opening: all 40 seams legal (5x5 grid graph is 2-edge-connected)
 {
@@ -39,10 +55,11 @@ const g = makeGame({});
   check('top row cut: oddSum = 5', g.oddSum(s) === 5);
 }
 
-// 4. random games: always exactly 20 plies, winner in {1,2}, oddSum sane
+// 4. random games: always exactly 16 plies, winner in {1,2}, oddSum sane
 {
   const rng = makeRng(999);
   let minOdd = 99, maxOdd = -1;
+  let allOk = true;
   for (let t = 0; t < 2000; t++) {
     let s = g.initial();
     let plies = 0;
@@ -53,12 +70,12 @@ const g = makeGame({});
       plies++;
     }
     const w = g.winner(s);
-    if (plies !== 20 || (w !== 1 && w !== 2)) { check(`game ${t} plies=${plies} w=${w}`, false); break; }
+    if (plies !== 16 || (w !== 1 && w !== 2)) { check(`game ${t} plies=${plies} w=${w}`, false); allOk = false; break; }
     const odd = g.oddSum(s);
-    if (odd < 0 || odd > 25) { check('oddSum range', false); break; }
+    if (odd < 0 || odd > 25) { check('oddSum range', false); allOk = false; break; }
     minOdd = Math.min(minOdd, odd); maxOdd = Math.max(maxOdd, odd);
   }
-  check('2000 random games: all exactly 20 plies, decisive', true);
+  check('2000 random games: all exactly 16 plies, decisive', allOk);
   console.log('   oddSum range over random games:', minOdd, '-', maxOdd);
 }
 
@@ -68,15 +85,16 @@ const g = makeGame({});
   let s = g.initial();
   for (let i = 0; i < 12; i++) s = g.apply(s, g.randomMove(s, rng));
   const legal = new Set(g.legalMoves(s));
+  let allOk = true;
   for (let i = 0; i < g.nSeams; i++) {
-    if (g.isLegalMove(s, i) !== legal.has(i)) { check('isLegalMove consistency', false); break; }
+    if (g.isLegalMove(s, i) !== legal.has(i)) { check('isLegalMove consistency', false); allOk = false; break; }
   }
-  check('isLegalMove matches legalMoves enumeration', true);
+  check('isLegalMove matches legalMoves enumeration', allOk);
 }
 
 // 6. winner respects T and firstRole
 {
-  const gT = makeGame({ T: 13, firstRole: 'odd' });
+  const gT = makeGame({ T: 13, firstRole: 'odd', budgetFirst: 8, budgetSecond: 8 });
   // build terminal state manually: use random game, then verify mapping
   const rng = makeRng(7);
   let s = gT.initial();
@@ -84,12 +102,72 @@ const g = makeGame({});
   const odd = gT.oddSum(s);
   const w = gT.winner(s);
   check('winner mapping (odd first)', (odd >= 13) === (w === 1));
-  const gE = makeGame({ T: 13, firstRole: 'even' });
+  const gE = makeGame({ T: 13, firstRole: 'even', budgetFirst: 8, budgetSecond: 8 });
   let s2 = gE.initial();
   while (gE.winner(s2) === null) s2 = gE.apply(s2, gE.randomMove(s2, rng));
   const odd2 = gE.oddSum(s2);
   const w2 = gE.winner(s2);
   check('winner mapping (even first)', (odd2 >= 13) === (w2 === 2));
+}
+
+// 7. legalMoves (bridge scan) matches the per-seam flood fill version, order included
+{
+  const rng = makeRng(31337);
+  let positions = 0, bad = null;
+  const stateOf = (walls) => ({ walls, placed: 0, toMove: 1 });
+
+  function compare(s) {
+    if (bad !== null) return;
+    positions++;
+    const fast = g.legalMoves(s), naive = g.legalMovesNaive(s);
+    const n = Math.max(fast.length, naive.length);
+    for (let i = 0; i < n; i++) {
+      if (fast[i] !== naive[i]) {
+        bad = { walls: Array.from(s.walls).join(''), at: i, fast: fast[i], naive: naive[i] };
+        return;
+      }
+    }
+  }
+
+  // random games, every ply from the opening to the terminal position
+  for (let t = 0; t < 1200 && bad === null; t++) {
+    let s = g.initial();
+    compare(s);
+    while (g.winner(s) === null) {
+      const m = g.randomMove(s, rng);
+      if (m === null) break;
+      s = g.apply(s, m);
+      compare(s);
+    }
+  }
+
+  // arbitrary wall sets: dense endgames, singletons, several isolated regions
+  const perm = new Int32Array(g.nSeams);
+  for (let t = 0; t < 12000 && bad === null; t++) {
+    for (let i = 0; i < g.nSeams; i++) perm[i] = i;
+    for (let i = g.nSeams - 1; i > 0; i--) {
+      const j = (rng() * (i + 1)) | 0;
+      const tmp = perm[i]; perm[i] = perm[j]; perm[j] = tmp;
+    }
+    const k = 20 + ((rng() * (g.nSeams - 19)) | 0); // 20..40 walls
+    const walls = new Uint8Array(g.nSeams);
+    for (let i = 0; i < k; i++) walls[perm[i]] = 1;
+    compare(stateOf(walls));
+  }
+
+  // extremes: empty board, fully walled board, every single-wall position
+  compare(stateOf(new Uint8Array(g.nSeams)));
+  compare(stateOf(new Uint8Array(g.nSeams).fill(1)));
+  for (let i = 0; i < g.nSeams; i++) {
+    const walls = new Uint8Array(g.nSeams); walls[i] = 1;
+    compare(stateOf(walls));
+  }
+
+  if (bad !== null) {
+    console.log(`   walls=${bad.walls} first difference at position ${bad.at}: fast=${bad.fast} naive=${bad.naive}`);
+  }
+  check(`legalMoves matches legalMovesNaive over ${positions} positions`, bad === null);
+  check('cross-check covered 20000+ positions', positions >= 20000);
 }
 
 console.log(failures === 0 ? 'ALL TESTS PASSED' : `${failures} FAILURES`);

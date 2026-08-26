@@ -6,6 +6,9 @@
 const path = require('path');
 const { randomAI, greedyAI, mctsAI } = require('./ai');
 const { playGames } = require('./sim');
+const { setUsage, requireArgs, parseIntStrict, parsePositiveInt } = require('./cli_util');
+
+setUsage('node bench.js <gameModulePath> <variantJSON> <aiA> <aiB> <n> <seed>');
 
 function factoryFor(spec) {
   if (spec === 'random') return (rng) => randomAI(rng);
@@ -16,10 +19,12 @@ function factoryFor(spec) {
 }
 
 const [, , gamePath, variantJson, aiA, aiB, nStr, seedStr] = process.argv;
+requireArgs(['gameModulePath', 'variantJSON', 'aiA', 'aiB', 'n', 'seed'],
+  [gamePath, variantJson, aiA, aiB, nStr, seedStr]);
+const n = parsePositiveInt('n', nStr);
+const seed = parseIntStrict('seed', seedStr);
 const makeGame = require(path.resolve(gamePath));
 const game = makeGame(JSON.parse(variantJson || '{}'));
-const n = parseInt(nStr, 10);
-const seed = parseInt(seedStr, 10);
 const t0 = Date.now();
 const r = playGames(game, factoryFor(aiA), factoryFor(aiB), n, seed);
 r.ms = Date.now() - t0;

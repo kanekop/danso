@@ -4,24 +4,26 @@
 // Players alternate placing permanent neutral walls on unwalled seams.
 // Restriction: a wall may never create a region of exactly one cell.
 // Game ends when both wall budgets are exhausted (or no legal move — provably
-// unreachable before that on 5x5 with 10+10 walls, handled defensively).
+// unreachable before that on 5x5 with 8+8 walls, handled defensively).
 // Scoring: each cell in an odd-sized region scores for role Odd, even-sized for
 // role Even. Odd wins iff oddScore >= T.
 //
 // Variant knobs:
 //   size        board side (default 5)
-//   T           Odd's winning threshold (default 13)
+//   T           Odd's winning threshold (default 11)
 //   firstRole   'odd' | 'even' — which role moves first (default 'odd')
-//   budgetFirst / budgetSecond   walls for first/second mover (default 10/10)
+//   budgetFirst / budgetSecond   walls for first/second mover (default 8/8)
+// Defaults are the shipped rules; measurements in balance_history.md predate
+// them and used the old development defaults T=13, 10/10.
 //
 // Engine "player" 1 = first mover, 2 = second mover (sim harness convention).
 
 function makeGame(variant = {}) {
   const size = variant.size ?? 5;
-  const T = variant.T ?? 13;
+  const T = variant.T ?? 11;
   const firstRole = variant.firstRole ?? 'odd'; // role of player 1
-  const budgetFirst = variant.budgetFirst ?? 10;
-  const budgetSecond = variant.budgetSecond ?? 10;
+  const budgetFirst = variant.budgetFirst ?? 8;
+  const budgetSecond = variant.budgetSecond ?? 8;
 
   const nCells = size * size;
   // seams: index -> [cellA, cellB]
@@ -40,15 +42,32 @@ function makeGame(variant = {}) {
     cellSeams[b].push({ seam: i, other: a });
   });
 
+  // flat mirrors of `seams` / `cellSeams` for the bridge scan (hot path)
+  const seamA = new Int32Array(nSeams), seamB = new Int32Array(nSeams);
+  seams.forEach(([a, b], i) => { seamA[i] = a; seamB[i] = b; });
+  const adjStart = new Int32Array(nCells + 1);
+  const adjSeam = new Int32Array(2 * nSeams), adjOther = new Int32Array(2 * nSeams);
+  for (let c = 0, k = 0; c < nCells; c++) {
+    adjStart[c] = k;
+    for (let j = 0; j < cellSeams[c].length; j++) {
+      adjSeam[k] = cellSeams[c][j].seam; adjOther[k] = cellSeams[c][j].other; k++;
+    }
+    adjStart[c + 1] = k;
+  }
+
   const totalWalls = budgetFirst + budgetSecond;
 
   // --- flood fill from cell `start` over unwalled seams; returns visited count.
   // walls: Uint8Array(nSeams). mark: reusable Int32Array(nCells) with stamp.
+  // Stamps must stay in Int32Array range; past it markBuf wraps negative, no
+  // cell ever matches the stamp and the fixed-size stack overflows. Each stamp
+  // issue site resets first.
   const markBuf = new Int32Array(nCells);
   let stampCounter = 0;
   const stack = new Int32Array(nCells);
 
   function componentSize(walls, start, extraWalledSeam) {
+    if (stampCounter >= 0x7ffffffe) { markBuf.fill(0); stampCounter = 0; }
     const stamp = ++stampCounter;
     let top = 0, count = 0;
     stack[top++] = start; markBuf[start] = stamp;
@@ -66,6 +85,7 @@ function makeGame(variant = {}) {
   }
 
   function reaches(walls, start, target, extraWalledSeam) {
+    if (stampCounter >= 0x7ffffffe) { markBuf.fill(0); stampCounter = 0; }
     const stamp = ++stampCounter;
     let top = 0;
     stack[top++] = start; markBuf[start] = stamp;
@@ -93,8 +113,68 @@ function makeGame(variant = {}) {
     return sb >= 2;
   }
 
+  // --- all legal walls from one scan of the position.
+  // An unwalled seam splits its region only if it is a bridge, so a single
+  // Tarjan DFS per region decides every seam: non-bridges are legal, bridges
+  // are legal iff both sides keep 2+ cells. Bridge side sizes come from the
+  // DFS subtree sizes (subSize[child] and regSize[child] - subSize[child]).
+  const disc = new Int32Array(nCells), low = new Int32Array(nCells);
+  const subSize = new Int32Array(nCells), parSeam = new Int32Array(nCells);
+  const adjIter = new Int32Array(nCells), dfsStack = new Int32Array(nCells);
+  const order = new Int32Array(nCells), regSize = new Int32Array(nCells);
+
+  function legalMovesFast(walls) {
+    disc.fill(-1);
+    let timer = 0, seen = 0;
+    for (let root = 0; root < nCells; root++) {
+      if (disc[root] !== -1) continue;
+      const compStart = seen;
+      disc[root] = low[root] = timer++;
+      subSize[root] = 1; parSeam[root] = -1; adjIter[root] = adjStart[root];
+      order[seen++] = root;
+      let top = 0;
+      dfsStack[top++] = root;
+      while (top > 0) {
+        const v = dfsStack[top - 1];
+        if (adjIter[v] < adjStart[v + 1]) {
+          const k = adjIter[v]++;
+          const seam = adjSeam[k], w = adjOther[k];
+          if (walls[seam] || seam === parSeam[v]) continue; // no multi-edges
+          if (disc[w] === -1) {
+            disc[w] = low[w] = timer++;
+            subSize[w] = 1; parSeam[w] = seam; adjIter[w] = adjStart[w];
+            order[seen++] = w;
+            dfsStack[top++] = w;
+          } else if (disc[w] < low[v]) low[v] = disc[w];
+        } else {
+          top--;
+          if (top > 0) {
+            const p = dfsStack[top - 1];
+            if (low[v] < low[p]) low[p] = low[v];
+            subSize[p] += subSize[v];
+          }
+        }
+      }
+      const total = subSize[root];
+      for (let k = compStart; k < seen; k++) regSize[order[k]] = total;
+    }
+    const ms = [];
+    for (let i = 0; i < nSeams; i++) {
+      if (walls[i]) continue;
+      const a = seamA[i], b = seamB[i];
+      let child = -1, par = -1;
+      if (parSeam[a] === i) { child = a; par = b; }
+      else if (parSeam[b] === i) { child = b; par = a; }
+      if (child < 0 || low[child] <= disc[par]) { ms.push(i); continue; }
+      const side = subSize[child];
+      if (side >= 2 && regSize[child] - side >= 2) ms.push(i);
+    }
+    return ms;
+  }
+
   // label all regions; returns odd-region cell total
   function oddSum(walls) {
+    if (stampCounter >= 0x7ffffffe) { markBuf.fill(0); stampCounter = 0; }
     const stamp = ++stampCounter;
     let odd = 0;
     for (let s = 0; s < nCells; s++) {
@@ -130,6 +210,11 @@ function makeGame(variant = {}) {
     player(s) { return s.toMove; },
 
     legalMoves(s) {
+      return legalMovesFast(s.walls);
+    },
+
+    // per-seam flood fill version; reference for the legalMoves cross-check
+    legalMovesNaive(s) {
       const ms = [];
       for (let i = 0; i < nSeams; i++) if (isLegal(s.walls, i)) ms.push(i);
       return ms;
